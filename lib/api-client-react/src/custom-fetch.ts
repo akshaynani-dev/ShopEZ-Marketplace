@@ -356,6 +356,13 @@ export async function customFetch<T = unknown>(
     if (token) {
       headers.set("authorization", `Bearer ${token}`);
     }
+  } else if (!headers.has("authorization")) {
+    if (typeof window !== "undefined") {
+      const token = window.localStorage.getItem('auth_token');
+      if (token) {
+        headers.set("authorization", `Bearer ${token}`);
+      }
+    }
   }
 
   const requestInfo = { method, url: resolveUrl(input) };

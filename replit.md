@@ -1,36 +1,54 @@
-# [Project name]
+# ShopEZ
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+ShopEZ is a full-stack e-commerce marketplace where buyers discover and purchase products, and sellers manage their storefront and analytics.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/api-server run dev` — run the API server (port 8080)
+- `pnpm --filter @workspace/shopez run dev` — run the frontend (port 21378)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- Required env: `DATABASE_URL` — Postgres connection string, `SESSION_SECRET` — JWT signing secret
+
+## Demo Accounts
+
+- **Seller:** `seller@shopez.com` / `password123`
+- **Buyer:** `buyer@shopez.com` / `password123`
+- **Seller 2:** `marcus@shopez.com` / `password123`
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
+- Frontend: React + Vite, Tailwind CSS, React Query, Recharts, Wouter
 - API: Express 5
 - DB: PostgreSQL + Drizzle ORM
 - Validation: Zod (`zod/v4`), `drizzle-zod`
+- Auth: JWT (jsonwebtoken) + bcryptjs, token stored in localStorage
 - API codegen: Orval (from OpenAPI spec)
 - Build: esbuild (CJS bundle)
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `lib/api-spec/openapi.yaml` — OpenAPI spec (source of truth for API contracts)
+- `lib/db/src/schema/` — Drizzle schema (users, products, reviews, cart, orders)
+- `artifacts/api-server/src/routes/` — Express route handlers (auth, products, reviews, cart, orders, seller)
+- `artifacts/api-server/src/middlewares/auth.ts` — JWT middleware (requireAuth, requireSeller)
+- `artifacts/shopez/src/` — React frontend
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- JWT stored in localStorage and injected via custom-fetch.ts automatically for all API requests
+- Orders store item snapshots as JSONB (productId, name, price, quantity, imageUrl) for immutable history
+- Seller analytics (stats, sales chart, top products) computed server-side from orders JSONB without a separate analytics table
+- Buyer and seller share the same `/products` CRUD — sellers are scoped to their own products via sellerId check
+- Cart is persisted in the database (not localStorage) so it survives sessions
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- **Buyers:** Browse product catalog, filter by category/price/sort, view product details with reviews, manage cart, checkout, track orders
+- **Sellers:** Dashboard with revenue stats and sales chart, product management (add/edit/delete), order fulfillment with status updates
 
 ## User preferences
 
@@ -38,7 +56,9 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Always run `pnpm run typecheck:libs` before artifact typechecks when schema files change
+- After every OpenAPI spec change, re-run `pnpm --filter @workspace/api-spec run codegen`
+- The products route has `/products/featured` and `/products/categories` BEFORE `/products/:id` — order matters in Express 5
 
 ## Pointers
 
