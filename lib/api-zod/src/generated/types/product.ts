@@ -7,7 +7,7 @@
  */
 
 export interface Product {
-  id: number;
+  id: string;
   name: string;
   description: string;
   price: number;
@@ -15,7 +15,7 @@ export interface Product {
   category: string;
   imageUrl: string;
   stock: number;
-  sellerId: number;
+  sellerId: string;
   sellerName: string;
   rating: number;
   reviewCount: number;

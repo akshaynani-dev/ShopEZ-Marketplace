@@ -186,7 +186,7 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
+            type: string
       responses:
         "200":
           description: Product
@@ -203,7 +203,7 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
+            type: string
       requestBody:
         required: true
         content:
@@ -226,7 +226,7 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
+            type: string
       responses:
         "204":
           description: Deleted
@@ -241,7 +241,7 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
+            type: string
       responses:
         "200":
           description: Reviews
@@ -260,7 +260,7 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
+            type: string
       requestBody:
         required: true
         content:
@@ -324,7 +324,7 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
+            type: string
       requestBody:
         required: true
         content:
@@ -347,7 +347,7 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
+            type: string
       responses:
         "200":
           description: Updated cart
@@ -398,7 +398,7 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
+            type: string
       responses:
         "200":
           description: Order
@@ -417,7 +417,7 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
+            type: string
       requestBody:
         required: true
         content:
@@ -515,7 +515,7 @@ components:
       type: object
       properties:
         id:
-          type: integer
+          type: string
         name:
           type: string
         email:
@@ -563,7 +563,7 @@ components:
       type: object
       properties:
         id:
-          type: integer
+          type: string
         name:
           type: string
         description:
@@ -579,7 +579,7 @@ components:
         stock:
           type: integer
         sellerId:
-          type: integer
+          type: string
         sellerName:
           type: string
         rating:
@@ -655,11 +655,11 @@ components:
       type: object
       properties:
         id:
-          type: integer
+          type: string
         productId:
-          type: integer
+          type: string
         userId:
-          type: integer
+          type: string
         userName:
           type: string
         rating:
@@ -683,7 +683,7 @@ components:
       type: object
       properties:
         productId:
-          type: integer
+          type: string
         quantity:
           type: integer
         product:
@@ -709,7 +709,7 @@ components:
       type: object
       properties:
         productId:
-          type: integer
+          type: string
         quantity:
           type: integer
       required: [productId, quantity]
@@ -725,7 +725,7 @@ components:
       type: object
       properties:
         productId:
-          type: integer
+          type: string
         productName:
           type: string
         quantity:
@@ -740,9 +740,9 @@ components:
       type: object
       properties:
         id:
-          type: integer
+          type: string
         buyerId:
-          type: integer
+          type: string
         buyerName:
           type: string
         items:
@@ -813,7 +813,7 @@ components:
       type: object
       properties:
         productId:
-          type: integer
+          type: string
         name:
           type: string
         imageUrl:

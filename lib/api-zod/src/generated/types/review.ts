@@ -7,9 +7,9 @@
  */
 
 export interface Review {
-  id: number;
-  productId: number;
-  userId: number;
+  id: string;
+  productId: string;
+  userId: string;
   userName: string;
   rating: number;
   comment: string;

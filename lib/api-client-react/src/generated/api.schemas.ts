@@ -18,7 +18,7 @@ export const UserRole = {
 } as const;
 
 export interface User {
-  id: number;
+  id: string;
   name: string;
   email: string;
   role: UserRole;
@@ -51,7 +51,7 @@ export interface AuthResponse {
 }
 
 export interface Product {
-  id: number;
+  id: string;
   name: string;
   description: string;
   price: number;
@@ -59,7 +59,7 @@ export interface Product {
   category: string;
   imageUrl: string;
   stock: number;
-  sellerId: number;
+  sellerId: string;
   sellerName: string;
   rating: number;
   reviewCount: number;
@@ -99,9 +99,9 @@ export interface Category {
 }
 
 export interface Review {
-  id: number;
-  productId: number;
-  userId: number;
+  id: string;
+  productId: string;
+  userId: string;
   userName: string;
   rating: number;
   comment: string;
@@ -114,7 +114,7 @@ export interface ReviewInput {
 }
 
 export interface CartItem {
-  productId: number;
+  productId: string;
   quantity: number;
   product: Product;
 }
@@ -127,7 +127,7 @@ export interface Cart {
 }
 
 export interface CartItemInput {
-  productId: number;
+  productId: string;
   quantity: number;
 }
 
@@ -136,7 +136,7 @@ export interface CartItemUpdate {
 }
 
 export interface OrderItem {
-  productId: number;
+  productId: string;
   productName: string;
   quantity: number;
   price: number;
@@ -155,8 +155,8 @@ export const OrderStatus = {
 } as const;
 
 export interface Order {
-  id: number;
-  buyerId: number;
+  id: string;
+  buyerId: string;
   buyerName: string;
   items: OrderItem[];
   subtotal: number;
@@ -203,7 +203,7 @@ export interface SalesDataPoint {
 }
 
 export interface TopProduct {
-  productId: number;
+  productId: string;
   name: string;
   imageUrl: string;
   totalSold: number;

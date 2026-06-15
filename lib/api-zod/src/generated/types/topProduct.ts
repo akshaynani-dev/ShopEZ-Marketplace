@@ -7,7 +7,7 @@
  */
 
 export interface TopProduct {
-  productId: number;
+  productId: string;
   name: string;
   imageUrl: string;
   totalSold: number;

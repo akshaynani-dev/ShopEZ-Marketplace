@@ -38,7 +38,7 @@ export const LoginBody = zod.object({
 export const LoginResponse = zod.object({
   "token": zod.string(),
   "user": zod.object({
-  "id": zod.number(),
+  "id": zod.string(),
   "name": zod.string(),
   "email": zod.string(),
   "role": zod.enum(['buyer', 'seller']),
@@ -51,7 +51,7 @@ export const LoginResponse = zod.object({
  * @summary Get current user
  */
 export const GetMeResponse = zod.object({
-  "id": zod.number(),
+  "id": zod.string(),
   "name": zod.string(),
   "email": zod.string(),
   "role": zod.enum(['buyer', 'seller']),
@@ -74,7 +74,7 @@ export const ListProductsQueryParams = zod.object({
 
 export const ListProductsResponse = zod.object({
   "products": zod.array(zod.object({
-  "id": zod.number(),
+  "id": zod.string(),
   "name": zod.string(),
   "description": zod.string(),
   "price": zod.number(),
@@ -82,7 +82,7 @@ export const ListProductsResponse = zod.object({
   "category": zod.string(),
   "imageUrl": zod.string(),
   "stock": zod.number(),
-  "sellerId": zod.number(),
+  "sellerId": zod.string(),
   "sellerName": zod.string(),
   "rating": zod.number(),
   "reviewCount": zod.number(),
@@ -112,7 +112,7 @@ export const CreateProductBody = zod.object({
  * @summary Get featured/top-rated products
  */
 export const GetFeaturedProductsResponseItem = zod.object({
-  "id": zod.number(),
+  "id": zod.string(),
   "name": zod.string(),
   "description": zod.string(),
   "price": zod.number(),
@@ -120,7 +120,7 @@ export const GetFeaturedProductsResponseItem = zod.object({
   "category": zod.string(),
   "imageUrl": zod.string(),
   "stock": zod.number(),
-  "sellerId": zod.number(),
+  "sellerId": zod.string(),
   "sellerName": zod.string(),
   "rating": zod.number(),
   "reviewCount": zod.number(),
@@ -143,11 +143,11 @@ export const GetCategoriesResponse = zod.array(GetCategoriesResponseItem)
  * @summary Get product by ID
  */
 export const GetProductParams = zod.object({
-  "id": zod.coerce.number()
+  "id": zod.coerce.string()
 })
 
 export const GetProductResponse = zod.object({
-  "id": zod.number(),
+  "id": zod.string(),
   "name": zod.string(),
   "description": zod.string(),
   "price": zod.number(),
@@ -155,7 +155,7 @@ export const GetProductResponse = zod.object({
   "category": zod.string(),
   "imageUrl": zod.string(),
   "stock": zod.number(),
-  "sellerId": zod.number(),
+  "sellerId": zod.string(),
   "sellerName": zod.string(),
   "rating": zod.number(),
   "reviewCount": zod.number(),
@@ -167,7 +167,7 @@ export const GetProductResponse = zod.object({
  * @summary Update product (seller)
  */
 export const UpdateProductParams = zod.object({
-  "id": zod.coerce.number()
+  "id": zod.coerce.string()
 })
 
 export const UpdateProductBody = zod.object({
@@ -181,7 +181,7 @@ export const UpdateProductBody = zod.object({
 })
 
 export const UpdateProductResponse = zod.object({
-  "id": zod.number(),
+  "id": zod.string(),
   "name": zod.string(),
   "description": zod.string(),
   "price": zod.number(),
@@ -189,7 +189,7 @@ export const UpdateProductResponse = zod.object({
   "category": zod.string(),
   "imageUrl": zod.string(),
   "stock": zod.number(),
-  "sellerId": zod.number(),
+  "sellerId": zod.string(),
   "sellerName": zod.string(),
   "rating": zod.number(),
   "reviewCount": zod.number(),
@@ -201,7 +201,7 @@ export const UpdateProductResponse = zod.object({
  * @summary Delete product (seller)
  */
 export const DeleteProductParams = zod.object({
-  "id": zod.coerce.number()
+  "id": zod.coerce.string()
 })
 
 
@@ -209,13 +209,13 @@ export const DeleteProductParams = zod.object({
  * @summary List reviews for a product
  */
 export const ListReviewsParams = zod.object({
-  "productId": zod.coerce.number()
+  "productId": zod.coerce.string()
 })
 
 export const ListReviewsResponseItem = zod.object({
-  "id": zod.number(),
-  "productId": zod.number(),
-  "userId": zod.number(),
+  "id": zod.string(),
+  "productId": zod.string(),
+  "userId": zod.string(),
   "userName": zod.string(),
   "rating": zod.number(),
   "comment": zod.string(),
@@ -228,7 +228,7 @@ export const ListReviewsResponse = zod.array(ListReviewsResponseItem)
  * @summary Create a review
  */
 export const CreateReviewParams = zod.object({
-  "productId": zod.coerce.number()
+  "productId": zod.coerce.string()
 })
 
 export const CreateReviewBody = zod.object({
@@ -242,10 +242,10 @@ export const CreateReviewBody = zod.object({
  */
 export const GetCartResponse = zod.object({
   "items": zod.array(zod.object({
-  "productId": zod.number(),
+  "productId": zod.string(),
   "quantity": zod.number(),
   "product": zod.object({
-  "id": zod.number(),
+  "id": zod.string(),
   "name": zod.string(),
   "description": zod.string(),
   "price": zod.number(),
@@ -253,7 +253,7 @@ export const GetCartResponse = zod.object({
   "category": zod.string(),
   "imageUrl": zod.string(),
   "stock": zod.number(),
-  "sellerId": zod.number(),
+  "sellerId": zod.string(),
   "sellerName": zod.string(),
   "rating": zod.number(),
   "reviewCount": zod.number(),
@@ -270,16 +270,16 @@ export const GetCartResponse = zod.object({
  * @summary Add item to cart
  */
 export const AddCartItemBody = zod.object({
-  "productId": zod.number(),
+  "productId": zod.string(),
   "quantity": zod.number()
 })
 
 export const AddCartItemResponse = zod.object({
   "items": zod.array(zod.object({
-  "productId": zod.number(),
+  "productId": zod.string(),
   "quantity": zod.number(),
   "product": zod.object({
-  "id": zod.number(),
+  "id": zod.string(),
   "name": zod.string(),
   "description": zod.string(),
   "price": zod.number(),
@@ -287,7 +287,7 @@ export const AddCartItemResponse = zod.object({
   "category": zod.string(),
   "imageUrl": zod.string(),
   "stock": zod.number(),
-  "sellerId": zod.number(),
+  "sellerId": zod.string(),
   "sellerName": zod.string(),
   "rating": zod.number(),
   "reviewCount": zod.number(),
@@ -304,7 +304,7 @@ export const AddCartItemResponse = zod.object({
  * @summary Update cart item quantity
  */
 export const UpdateCartItemParams = zod.object({
-  "productId": zod.coerce.number()
+  "productId": zod.coerce.string()
 })
 
 export const UpdateCartItemBody = zod.object({
@@ -313,10 +313,10 @@ export const UpdateCartItemBody = zod.object({
 
 export const UpdateCartItemResponse = zod.object({
   "items": zod.array(zod.object({
-  "productId": zod.number(),
+  "productId": zod.string(),
   "quantity": zod.number(),
   "product": zod.object({
-  "id": zod.number(),
+  "id": zod.string(),
   "name": zod.string(),
   "description": zod.string(),
   "price": zod.number(),
@@ -324,7 +324,7 @@ export const UpdateCartItemResponse = zod.object({
   "category": zod.string(),
   "imageUrl": zod.string(),
   "stock": zod.number(),
-  "sellerId": zod.number(),
+  "sellerId": zod.string(),
   "sellerName": zod.string(),
   "rating": zod.number(),
   "reviewCount": zod.number(),
@@ -341,15 +341,15 @@ export const UpdateCartItemResponse = zod.object({
  * @summary Remove item from cart
  */
 export const RemoveCartItemParams = zod.object({
-  "productId": zod.coerce.number()
+  "productId": zod.coerce.string()
 })
 
 export const RemoveCartItemResponse = zod.object({
   "items": zod.array(zod.object({
-  "productId": zod.number(),
+  "productId": zod.string(),
   "quantity": zod.number(),
   "product": zod.object({
-  "id": zod.number(),
+  "id": zod.string(),
   "name": zod.string(),
   "description": zod.string(),
   "price": zod.number(),
@@ -357,7 +357,7 @@ export const RemoveCartItemResponse = zod.object({
   "category": zod.string(),
   "imageUrl": zod.string(),
   "stock": zod.number(),
-  "sellerId": zod.number(),
+  "sellerId": zod.string(),
   "sellerName": zod.string(),
   "rating": zod.number(),
   "reviewCount": zod.number(),
@@ -374,11 +374,11 @@ export const RemoveCartItemResponse = zod.object({
  * @summary List my orders (buyer view)
  */
 export const ListOrdersResponseItem = zod.object({
-  "id": zod.number(),
-  "buyerId": zod.number(),
+  "id": zod.string(),
+  "buyerId": zod.string(),
   "buyerName": zod.string(),
   "items": zod.array(zod.object({
-  "productId": zod.number(),
+  "productId": zod.string(),
   "productName": zod.string(),
   "quantity": zod.number(),
   "price": zod.number(),
@@ -407,15 +407,15 @@ export const CreateOrderBody = zod.object({
  * @summary Get order detail
  */
 export const GetOrderParams = zod.object({
-  "id": zod.coerce.number()
+  "id": zod.coerce.string()
 })
 
 export const GetOrderResponse = zod.object({
-  "id": zod.number(),
-  "buyerId": zod.number(),
+  "id": zod.string(),
+  "buyerId": zod.string(),
   "buyerName": zod.string(),
   "items": zod.array(zod.object({
-  "productId": zod.number(),
+  "productId": zod.string(),
   "productName": zod.string(),
   "quantity": zod.number(),
   "price": zod.number(),
@@ -434,7 +434,7 @@ export const GetOrderResponse = zod.object({
  * @summary Update order status (seller)
  */
 export const UpdateOrderStatusParams = zod.object({
-  "id": zod.coerce.number()
+  "id": zod.coerce.string()
 })
 
 export const UpdateOrderStatusBody = zod.object({
@@ -442,11 +442,11 @@ export const UpdateOrderStatusBody = zod.object({
 })
 
 export const UpdateOrderStatusResponse = zod.object({
-  "id": zod.number(),
-  "buyerId": zod.number(),
+  "id": zod.string(),
+  "buyerId": zod.string(),
   "buyerName": zod.string(),
   "items": zod.array(zod.object({
-  "productId": zod.number(),
+  "productId": zod.string(),
   "productName": zod.string(),
   "quantity": zod.number(),
   "price": zod.number(),
@@ -497,11 +497,11 @@ export const ListSellerOrdersQueryParams = zod.object({
 })
 
 export const ListSellerOrdersResponseItem = zod.object({
-  "id": zod.number(),
-  "buyerId": zod.number(),
+  "id": zod.string(),
+  "buyerId": zod.string(),
   "buyerName": zod.string(),
   "items": zod.array(zod.object({
-  "productId": zod.number(),
+  "productId": zod.string(),
   "productName": zod.string(),
   "quantity": zod.number(),
   "price": zod.number(),
@@ -521,7 +521,7 @@ export const ListSellerOrdersResponse = zod.array(ListSellerOrdersResponseItem)
  * @summary Top selling products for seller
  */
 export const GetTopProductsResponseItem = zod.object({
-  "productId": zod.number(),
+  "productId": zod.string(),
   "name": zod.string(),
   "imageUrl": zod.string(),
   "totalSold": zod.number(),
