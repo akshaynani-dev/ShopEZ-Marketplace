@@ -4,7 +4,7 @@ import jwt from "jsonwebtoken";
 const JWT_SECRET = process.env.SESSION_SECRET ?? "shopez-secret";
 
 export interface JwtPayload {
-  userId: number;
+  userId: string;
   role: string;
 }
 

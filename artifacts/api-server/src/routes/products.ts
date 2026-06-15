@@ -1,63 +1,72 @@
 import { Router, type IRouter } from "express";
-import { db, productsTable, usersTable, reviewsTable } from "@workspace/db";
-import { eq, ilike, and, gte, lte, desc, asc, sql } from "drizzle-orm";
-import {
-  ListProductsQueryParams,
-  CreateProductBody,
-  GetProductParams,
-  UpdateProductParams,
-  UpdateProductBody,
-  DeleteProductParams,
-} from "@workspace/api-zod";
+import mongoose from "mongoose";
+import { ProductModel, UserModel } from "@workspace/db";
+import { ListProductsQueryParams, CreateProductBody, UpdateProductBody } from "@workspace/api-zod";
 import { requireAuth, requireSeller, optionalAuth } from "../middlewares/auth";
 import type { JwtPayload } from "../middlewares/auth";
 import type { Request } from "express";
 
 const router: IRouter = Router();
 
-function productWithSeller(p: typeof productsTable.$inferSelect, sellerName: string, rating: number, reviewCount: number) {
+function formatProduct(p: Record<string, unknown>) {
   return {
-    id: p.id,
+    id: String(p._id),
     name: p.name,
     description: p.description,
-    price: parseFloat(p.price as unknown as string),
-    discountPercent: parseFloat(p.discountPercent as unknown as string),
+    price: p.price,
+    discountPercent: p.discountPercent,
     category: p.category,
     imageUrl: p.imageUrl,
     stock: p.stock,
-    sellerId: p.sellerId,
-    sellerName,
-    rating,
-    reviewCount,
-    createdAt: p.createdAt.toISOString(),
+    sellerId: String(p.sellerId),
+    sellerName: p.sellerName ?? "",
+    rating: typeof p.rating === "number" ? Math.round(p.rating * 10) / 10 : 0,
+    reviewCount: p.reviewCount ?? 0,
+    createdAt: p.createdAt instanceof Date ? p.createdAt.toISOString() : p.createdAt,
   };
 }
 
-router.get("/products/featured", async (_req, res): Promise<void> => {
-  const rows = await db
-    .select({
-      product: productsTable,
-      sellerName: usersTable.name,
-      avgRating: sql<number>`COALESCE(AVG(${reviewsTable.rating}), 0)`,
-      reviewCount: sql<number>`COUNT(${reviewsTable.id})`,
-    })
-    .from(productsTable)
-    .leftJoin(usersTable, eq(productsTable.sellerId, usersTable.id))
-    .leftJoin(reviewsTable, eq(productsTable.id, reviewsTable.productId))
-    .groupBy(productsTable.id, usersTable.name)
-    .orderBy(desc(sql`COALESCE(AVG(${reviewsTable.rating}), 0)`))
-    .limit(8);
+const withReviewsPipeline = [
+  {
+    $lookup: {
+      from: "users",
+      localField: "sellerId",
+      foreignField: "_id",
+      as: "seller",
+    },
+  },
+  {
+    $lookup: {
+      from: "reviews",
+      localField: "_id",
+      foreignField: "productId",
+      as: "reviews",
+    },
+  },
+  {
+    $addFields: {
+      sellerName: { $ifNull: [{ $arrayElemAt: ["$seller.name", 0] }, ""] },
+      rating: { $ifNull: [{ $avg: "$reviews.rating" }, 0] },
+      reviewCount: { $size: "$reviews" },
+    },
+  },
+];
 
-  res.json(rows.map(r => productWithSeller(r.product, r.sellerName ?? "", Number(r.avgRating), Number(r.reviewCount))));
+router.get("/products/featured", async (_req, res): Promise<void> => {
+  const rows = await ProductModel.aggregate([
+    ...withReviewsPipeline,
+    { $sort: { rating: -1 } },
+    { $limit: 8 },
+  ]);
+  res.json(rows.map(formatProduct));
 });
 
 router.get("/products/categories", async (_req, res): Promise<void> => {
-  const rows = await db
-    .select({ category: productsTable.category, count: sql<number>`COUNT(*)` })
-    .from(productsTable)
-    .groupBy(productsTable.category)
-    .orderBy(productsTable.category);
-  res.json(rows.map(r => ({ name: r.category, count: Number(r.count) })));
+  const rows = await ProductModel.aggregate([
+    { $group: { _id: "$category", count: { $sum: 1 } } },
+    { $sort: { _id: 1 } },
+  ]);
+  res.json(rows.map((r) => ({ name: r._id, count: r.count })));
 });
 
 router.get("/products", optionalAuth, async (req, res): Promise<void> => {
@@ -68,53 +77,39 @@ router.get("/products", optionalAuth, async (req, res): Promise<void> => {
   }
   const { category, search, sort, minPrice, maxPrice, page = 1, limit = 12 } = parsed.data;
 
-  const conditions = [];
-  if (category) conditions.push(eq(productsTable.category, category));
-  if (search) conditions.push(ilike(productsTable.name, `%${search}%`));
-  if (minPrice != null) conditions.push(gte(sql`${productsTable.price}::numeric`, minPrice));
-  if (maxPrice != null) conditions.push(lte(sql`${productsTable.price}::numeric`, maxPrice));
+  const match: Record<string, unknown> = {};
+  if (category) match.category = category;
+  if (search) match.name = { $regex: search, $options: "i" };
+  if (minPrice != null || maxPrice != null) {
+    match.price = {};
+    if (minPrice != null) (match.price as Record<string, number>).$gte = minPrice;
+    if (maxPrice != null) (match.price as Record<string, number>).$lte = maxPrice;
+  }
 
-  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+  type SortVal = 1 | -1;
+  let sortStage: Record<string, SortVal> = { createdAt: -1 };
+  if (sort === "price_asc") sortStage = { price: 1 };
+  else if (sort === "price_desc") sortStage = { price: -1 };
+  else if (sort === "rating") sortStage = { rating: -1 };
+
   const offset = ((page as number) - 1) * (limit as number);
 
-  let orderBy;
-  switch (sort) {
-    case "price_asc": orderBy = asc(productsTable.price); break;
-    case "price_desc": orderBy = desc(productsTable.price); break;
-    case "newest": orderBy = desc(productsTable.createdAt); break;
-    default: orderBy = desc(productsTable.createdAt);
-  }
-
-  const [rows, countRow] = await Promise.all([
-    db.select({
-      product: productsTable,
-      sellerName: usersTable.name,
-      avgRating: sql<number>`COALESCE(AVG(${reviewsTable.rating}), 0)`,
-      reviewCount: sql<number>`COUNT(DISTINCT ${reviewsTable.id})`,
-    })
-      .from(productsTable)
-      .leftJoin(usersTable, eq(productsTable.sellerId, usersTable.id))
-      .leftJoin(reviewsTable, eq(productsTable.id, reviewsTable.productId))
-      .where(whereClause)
-      .groupBy(productsTable.id, usersTable.name)
-      .orderBy(orderBy)
-      .limit(limit as number)
-      .offset(offset),
-    db.select({ count: sql<number>`COUNT(DISTINCT ${productsTable.id})` })
-      .from(productsTable)
-      .where(whereClause),
+  const [rows, totalResult] = await Promise.all([
+    ProductModel.aggregate([
+      { $match: match },
+      ...withReviewsPipeline,
+      { $sort: sortStage },
+      { $skip: offset },
+      { $limit: limit as number },
+    ]),
+    ProductModel.countDocuments(match),
   ]);
 
-  if (sort === "rating") {
-    rows.sort((a, b) => Number(b.avgRating) - Number(a.avgRating));
-  }
-
-  const total = Number(countRow[0]?.count ?? 0);
   res.json({
-    products: rows.map(r => productWithSeller(r.product, r.sellerName ?? "", Number(r.avgRating), Number(r.reviewCount))),
-    total,
+    products: rows.map(formatProduct),
+    total: totalResult,
     page: page as number,
-    totalPages: Math.ceil(total / (limit as number)),
+    totalPages: Math.ceil(totalResult / (limit as number)),
   });
 });
 
@@ -125,48 +120,45 @@ router.post("/products", requireAuth, requireSeller, async (req, res): Promise<v
     return;
   }
   const { userId } = (req as Request & { user: JwtPayload }).user;
-  const [seller] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
-  const [product] = await db.insert(productsTable).values({
+  const seller = await UserModel.findById(userId);
+
+  const product = await ProductModel.create({
     ...parsed.data,
-    price: parsed.data.price.toString() as unknown as typeof productsTable.$inferSelect.price,
-    discountPercent: parsed.data.discountPercent.toString() as unknown as typeof productsTable.$inferSelect.discountPercent,
-    sellerId: userId,
-  }).returning();
-  res.status(201).json(productWithSeller(product, seller?.name ?? "", 0, 0));
+    sellerId: new mongoose.Types.ObjectId(userId),
+  });
+
+  res.status(201).json(
+    formatProduct({
+      ...product.toObject(),
+      sellerName: seller?.name ?? "",
+      rating: 0,
+      reviewCount: 0,
+    }),
+  );
 });
 
 router.get("/products/:id", async (req, res): Promise<void> => {
-  const params = GetProductParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+  const id = String(req.params.id);
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    res.status(404).json({ error: "Product not found" });
     return;
   }
-  const rows = await db
-    .select({
-      product: productsTable,
-      sellerName: usersTable.name,
-      avgRating: sql<number>`COALESCE(AVG(${reviewsTable.rating}), 0)`,
-      reviewCount: sql<number>`COUNT(${reviewsTable.id})`,
-    })
-    .from(productsTable)
-    .leftJoin(usersTable, eq(productsTable.sellerId, usersTable.id))
-    .leftJoin(reviewsTable, eq(productsTable.id, reviewsTable.productId))
-    .where(eq(productsTable.id, params.data.id))
-    .groupBy(productsTable.id, usersTable.name)
-    .limit(1);
-
+  const rows = await ProductModel.aggregate([
+    { $match: { _id: new mongoose.Types.ObjectId(id) } },
+    ...withReviewsPipeline,
+    { $limit: 1 },
+  ]);
   if (rows.length === 0) {
     res.status(404).json({ error: "Product not found" });
     return;
   }
-  const r = rows[0];
-  res.json(productWithSeller(r.product, r.sellerName ?? "", Number(r.avgRating), Number(r.reviewCount)));
+  res.json(formatProduct(rows[0]));
 });
 
 router.patch("/products/:id", requireAuth, requireSeller, async (req, res): Promise<void> => {
-  const params = UpdateProductParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+  const id = String(req.params.id);
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    res.status(404).json({ error: "Product not found or not yours" });
     return;
   }
   const parsed = UpdateProductBody.safeParse(req.body);
@@ -175,33 +167,40 @@ router.patch("/products/:id", requireAuth, requireSeller, async (req, res): Prom
     return;
   }
   const { userId } = (req as Request & { user: JwtPayload }).user;
-  const updateData: Record<string, unknown> = { ...parsed.data };
-  if (parsed.data.price != null) updateData.price = parsed.data.price.toString();
-  if (parsed.data.discountPercent != null) updateData.discountPercent = parsed.data.discountPercent.toString();
 
-  const [product] = await db.update(productsTable)
-    .set(updateData)
-    .where(and(eq(productsTable.id, params.data.id), eq(productsTable.sellerId, userId)))
-    .returning();
+  const product = await ProductModel.findOneAndUpdate(
+    { _id: id, sellerId: new mongoose.Types.ObjectId(userId) },
+    { $set: parsed.data },
+    { new: true },
+  );
 
   if (!product) {
     res.status(404).json({ error: "Product not found or not yours" });
     return;
   }
-  const [seller] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
-  res.json(productWithSeller(product, seller?.name ?? "", 0, 0));
+
+  const seller = await UserModel.findById(userId);
+  res.json(
+    formatProduct({
+      ...product.toObject(),
+      sellerName: seller?.name ?? "",
+      rating: 0,
+      reviewCount: 0,
+    }),
+  );
 });
 
 router.delete("/products/:id", requireAuth, requireSeller, async (req, res): Promise<void> => {
-  const params = DeleteProductParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+  const id = String(req.params.id);
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    res.status(404).json({ error: "Product not found or not yours" });
     return;
   }
   const { userId } = (req as Request & { user: JwtPayload }).user;
-  const [deleted] = await db.delete(productsTable)
-    .where(and(eq(productsTable.id, params.data.id), eq(productsTable.sellerId, userId)))
-    .returning();
+  const deleted = await ProductModel.findOneAndDelete({
+    _id: id,
+    sellerId: new mongoose.Types.ObjectId(userId),
+  });
   if (!deleted) {
     res.status(404).json({ error: "Product not found or not yours" });
     return;

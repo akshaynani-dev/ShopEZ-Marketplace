@@ -1,55 +1,85 @@
 import { Router, type IRouter } from "express";
-import { db, cartItemsTable, productsTable, usersTable, reviewsTable } from "@workspace/db";
-import { eq, and, sql } from "drizzle-orm";
-import { AddCartItemBody, UpdateCartItemBody, UpdateCartItemParams, RemoveCartItemParams } from "@workspace/api-zod";
+import mongoose from "mongoose";
+import { CartItemModel, ProductModel } from "@workspace/db";
+import { AddCartItemBody, UpdateCartItemBody } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/auth";
 import type { JwtPayload } from "../middlewares/auth";
 import type { Request } from "express";
 
 const router: IRouter = Router();
 
-async function buildCart(userId: number) {
-  const cartRows = await db
-    .select({
-      cartItem: cartItemsTable,
-      product: productsTable,
-      sellerName: usersTable.name,
-      avgRating: sql<number>`COALESCE(AVG(${reviewsTable.rating}), 0)`,
-      reviewCount: sql<number>`COUNT(${reviewsTable.id})`,
-    })
-    .from(cartItemsTable)
-    .leftJoin(productsTable, eq(cartItemsTable.productId, productsTable.id))
-    .leftJoin(usersTable, eq(productsTable.sellerId, usersTable.id))
-    .leftJoin(reviewsTable, eq(productsTable.id, reviewsTable.productId))
-    .where(eq(cartItemsTable.userId, userId))
-    .groupBy(cartItemsTable.id, productsTable.id, usersTable.name);
+async function buildCart(userId: string) {
+  const cartItems = await CartItemModel.find({
+    userId: new mongoose.Types.ObjectId(userId),
+  }).populate("productId");
 
-  const items = cartRows
-    .filter(r => r.product != null)
-    .map(r => {
-      const p = r.product!;
-      const price = parseFloat(p.price as unknown as string);
-      const discount = parseFloat(p.discountPercent as unknown as string);
-      return {
-        productId: r.cartItem.productId,
-        quantity: r.cartItem.quantity,
-        product: {
-          id: p.id,
-          name: p.name,
-          description: p.description,
-          price,
-          discountPercent: discount,
-          category: p.category,
-          imageUrl: p.imageUrl,
-          stock: p.stock,
-          sellerId: p.sellerId,
-          sellerName: r.sellerName ?? "",
-          rating: Number(r.avgRating),
-          reviewCount: Number(r.reviewCount),
-          createdAt: p.createdAt.toISOString(),
-        },
-      };
+  const productIds = cartItems.map((c) => (c.productId as unknown as mongoose.Types.ObjectId));
+
+  const productStats = await ProductModel.aggregate([
+    { $match: { _id: { $in: productIds } } },
+    {
+      $lookup: {
+        from: "users",
+        localField: "sellerId",
+        foreignField: "_id",
+        as: "seller",
+      },
+    },
+    {
+      $lookup: {
+        from: "reviews",
+        localField: "_id",
+        foreignField: "productId",
+        as: "reviews",
+      },
+    },
+    {
+      $addFields: {
+        sellerName: { $ifNull: [{ $arrayElemAt: ["$seller.name", 0] }, ""] },
+        rating: { $ifNull: [{ $avg: "$reviews.rating" }, 0] },
+        reviewCount: { $size: "$reviews" },
+      },
+    },
+  ]);
+
+  const productMap = new Map(productStats.map((p) => [String(p._id), p]));
+
+  type CartEntry = {
+    productId: string;
+    quantity: number;
+    product: {
+      id: string; name: string; description: string; price: number;
+      discountPercent: number; category: string; imageUrl: string;
+      stock: number; sellerId: string; sellerName: string;
+      rating: number; reviewCount: number; createdAt: string;
+    };
+  };
+
+  const items: CartEntry[] = [];
+  for (const c of cartItems) {
+    const pid = String(c.productId instanceof mongoose.Types.ObjectId ? c.productId : (c.productId as { _id: unknown })._id ?? c.productId);
+    const p = productMap.get(pid);
+    if (!p) continue;
+    items.push({
+      productId: pid,
+      quantity: c.quantity,
+      product: {
+        id: pid,
+        name: p.name,
+        description: p.description,
+        price: p.price,
+        discountPercent: p.discountPercent,
+        category: p.category,
+        imageUrl: p.imageUrl,
+        stock: p.stock,
+        sellerId: String(p.sellerId),
+        sellerName: p.sellerName ?? "",
+        rating: Math.round((p.rating ?? 0) * 10) / 10,
+        reviewCount: p.reviewCount ?? 0,
+        createdAt: p.createdAt instanceof Date ? p.createdAt.toISOString() : String(p.createdAt),
+      },
     });
+  }
 
   let subtotal = 0;
   let discount = 0;
@@ -60,7 +90,12 @@ async function buildCart(userId: number) {
     discount += itemDiscount;
   }
 
-  return { items, subtotal: Math.round(subtotal * 100) / 100, discount: Math.round(discount * 100) / 100, total: Math.round((subtotal - discount) * 100) / 100 };
+  return {
+    items,
+    subtotal: Math.round(subtotal * 100) / 100,
+    discount: Math.round(discount * 100) / 100,
+    total: Math.round((subtotal - discount) * 100) / 100,
+  };
 }
 
 router.get("/cart", requireAuth, async (req, res): Promise<void> => {
@@ -70,7 +105,7 @@ router.get("/cart", requireAuth, async (req, res): Promise<void> => {
 
 router.delete("/cart", requireAuth, async (req, res): Promise<void> => {
   const { userId } = (req as Request & { user: JwtPayload }).user;
-  await db.delete(cartItemsTable).where(eq(cartItemsTable.userId, userId));
+  await CartItemModel.deleteMany({ userId: new mongoose.Types.ObjectId(userId) });
   res.sendStatus(204);
 });
 
@@ -82,28 +117,29 @@ router.post("/cart/items", requireAuth, async (req, res): Promise<void> => {
   }
   const { userId } = (req as Request & { user: JwtPayload }).user;
   const { productId, quantity } = parsed.data;
+  const productIdStr = String(productId);
 
-  const existing = await db.select().from(cartItemsTable)
-    .where(and(eq(cartItemsTable.userId, userId), eq(cartItemsTable.productId, productId)))
-    .limit(1);
+  if (!mongoose.Types.ObjectId.isValid(productIdStr)) {
+    res.status(400).json({ error: "Invalid product id" });
+    return;
+  }
 
-  if (existing.length > 0) {
-    await db.update(cartItemsTable)
-      .set({ quantity: existing[0].quantity + quantity })
-      .where(and(eq(cartItemsTable.userId, userId), eq(cartItemsTable.productId, productId)));
+  const productOid = new mongoose.Types.ObjectId(productIdStr);
+  const userOid = new mongoose.Types.ObjectId(userId);
+
+  const existing = await CartItemModel.findOne({ userId: userOid, productId: productOid });
+  if (existing) {
+    existing.quantity += quantity;
+    await existing.save();
   } else {
-    await db.insert(cartItemsTable).values({ userId, productId, quantity });
+    await CartItemModel.create({ userId: userOid, productId: productOid, quantity });
   }
 
   res.json(await buildCart(userId));
 });
 
 router.patch("/cart/items/:productId", requireAuth, async (req, res): Promise<void> => {
-  const params = UpdateCartItemParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
+  const productId = String(req.params.productId);
   const parsed = UpdateCartItemBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -111,25 +147,35 @@ router.patch("/cart/items/:productId", requireAuth, async (req, res): Promise<vo
   }
   const { userId } = (req as Request & { user: JwtPayload }).user;
 
+  if (!mongoose.Types.ObjectId.isValid(productId)) {
+    res.status(400).json({ error: "Invalid product id" });
+    return;
+  }
+
+  const productOid = new mongoose.Types.ObjectId(productId);
+  const userOid = new mongoose.Types.ObjectId(userId);
+
   if (parsed.data.quantity <= 0) {
-    await db.delete(cartItemsTable).where(and(eq(cartItemsTable.userId, userId), eq(cartItemsTable.productId, params.data.productId)));
+    await CartItemModel.deleteOne({ userId: userOid, productId: productOid });
   } else {
-    await db.update(cartItemsTable)
-      .set({ quantity: parsed.data.quantity })
-      .where(and(eq(cartItemsTable.userId, userId), eq(cartItemsTable.productId, params.data.productId)));
+    await CartItemModel.updateOne(
+      { userId: userOid, productId: productOid },
+      { $set: { quantity: parsed.data.quantity } },
+    );
   }
 
   res.json(await buildCart(userId));
 });
 
 router.delete("/cart/items/:productId", requireAuth, async (req, res): Promise<void> => {
-  const params = RemoveCartItemParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
+  const productId = String(req.params.productId);
   const { userId } = (req as Request & { user: JwtPayload }).user;
-  await db.delete(cartItemsTable).where(and(eq(cartItemsTable.userId, userId), eq(cartItemsTable.productId, params.data.productId)));
+  if (mongoose.Types.ObjectId.isValid(productId)) {
+    await CartItemModel.deleteOne({
+      userId: new mongoose.Types.ObjectId(userId),
+      productId: new mongoose.Types.ObjectId(productId),
+    });
+  }
   res.json(await buildCart(userId));
 });
 

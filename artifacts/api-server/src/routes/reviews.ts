@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
-import { db, reviewsTable, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
-import { CreateReviewBody, CreateReviewParams, ListReviewsParams } from "@workspace/api-zod";
+import mongoose from "mongoose";
+import { ReviewModel, UserModel } from "@workspace/db";
+import { CreateReviewBody } from "@workspace/api-zod";
 import { requireAuth, optionalAuth } from "../middlewares/auth";
 import type { JwtPayload } from "../middlewares/auth";
 import type { Request } from "express";
@@ -9,33 +9,33 @@ import type { Request } from "express";
 const router: IRouter = Router();
 
 router.get("/products/:productId/reviews", optionalAuth, async (req, res): Promise<void> => {
-  const params = ListReviewsParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+  const productId = String(req.params.productId);
+  if (!mongoose.Types.ObjectId.isValid(productId)) {
+    res.json([]);
     return;
   }
-  const rows = await db
-    .select({ review: reviewsTable, userName: usersTable.name })
-    .from(reviewsTable)
-    .leftJoin(usersTable, eq(reviewsTable.userId, usersTable.id))
-    .where(eq(reviewsTable.productId, params.data.productId))
-    .orderBy(reviewsTable.createdAt);
 
-  res.json(rows.map(r => ({
-    id: r.review.id,
-    productId: r.review.productId,
-    userId: r.review.userId,
-    userName: r.userName ?? "Anonymous",
-    rating: r.review.rating,
-    comment: r.review.comment,
-    createdAt: r.review.createdAt.toISOString(),
-  })));
+  const reviews = await ReviewModel.find({ productId: new mongoose.Types.ObjectId(productId) })
+    .sort({ createdAt: 1 })
+    .populate<{ userId: { _id: mongoose.Types.ObjectId; name: string } }>("userId", "name");
+
+  res.json(
+    reviews.map((r) => ({
+      id: r._id.toString(),
+      productId: r.productId.toString(),
+      userId: r.userId._id ? r.userId._id.toString() : r.userId.toString(),
+      userName: (r.userId as unknown as { name?: string }).name ?? "Anonymous",
+      rating: r.rating,
+      comment: r.comment,
+      createdAt: r.createdAt.toISOString(),
+    })),
+  );
 });
 
 router.post("/products/:productId/reviews", requireAuth, async (req, res): Promise<void> => {
-  const params = CreateReviewParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+  const productId = String(req.params.productId);
+  if (!mongoose.Types.ObjectId.isValid(productId)) {
+    res.status(404).json({ error: "Product not found" });
     return;
   }
   const parsed = CreateReviewBody.safeParse(req.body);
@@ -44,19 +44,19 @@ router.post("/products/:productId/reviews", requireAuth, async (req, res): Promi
     return;
   }
   const { userId } = (req as Request & { user: JwtPayload }).user;
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  const user = await UserModel.findById(userId);
 
-  const [review] = await db.insert(reviewsTable).values({
-    productId: params.data.productId,
-    userId,
+  const review = await ReviewModel.create({
+    productId: new mongoose.Types.ObjectId(productId),
+    userId: new mongoose.Types.ObjectId(userId),
     rating: parsed.data.rating,
     comment: parsed.data.comment,
-  }).returning();
+  });
 
   res.status(201).json({
-    id: review.id,
-    productId: review.productId,
-    userId: review.userId,
+    id: review._id.toString(),
+    productId: review.productId.toString(),
+    userId: review.userId.toString(),
     userName: user?.name ?? "Anonymous",
     rating: review.rating,
     comment: review.comment,

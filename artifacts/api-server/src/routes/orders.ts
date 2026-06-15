@@ -1,37 +1,37 @@
 import { Router, type IRouter } from "express";
-import { db, ordersTable, cartItemsTable, productsTable, usersTable } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
-import { CreateOrderBody, GetOrderParams, UpdateOrderStatusBody, UpdateOrderStatusParams } from "@workspace/api-zod";
+import mongoose from "mongoose";
+import { OrderModel, CartItemModel, ProductModel, UserModel } from "@workspace/db";
+import { CreateOrderBody, UpdateOrderStatusBody } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/auth";
 import type { JwtPayload } from "../middlewares/auth";
+import type { IOrder } from "@workspace/db";
 import type { Request } from "express";
 
 const router: IRouter = Router();
 
-function formatOrder(o: typeof ordersTable.$inferSelect, buyerName: string) {
+function formatOrder(o: IOrder, buyerName: string) {
   return {
-    id: o.id,
-    buyerId: o.buyerId,
+    id: o._id.toString(),
+    buyerId: o.buyerId.toString(),
     buyerName,
-    items: o.items as unknown[],
-    subtotal: parseFloat(o.subtotal as unknown as string),
-    discount: parseFloat(o.discount as unknown as string),
-    total: parseFloat(o.total as unknown as string),
+    items: o.items,
+    subtotal: o.subtotal,
+    discount: o.discount,
+    total: o.total,
     status: o.status,
     shippingAddress: o.shippingAddress,
+    paymentMethod: o.paymentMethod,
     createdAt: o.createdAt.toISOString(),
   };
 }
 
 router.get("/orders", requireAuth, async (req, res): Promise<void> => {
   const { userId } = (req as Request & { user: JwtPayload }).user;
-  const rows = await db
-    .select({ order: ordersTable, buyerName: usersTable.name })
-    .from(ordersTable)
-    .leftJoin(usersTable, eq(ordersTable.buyerId, usersTable.id))
-    .where(eq(ordersTable.buyerId, userId))
-    .orderBy(desc(ordersTable.createdAt));
-  res.json(rows.map(r => formatOrder(r.order, r.buyerName ?? "")));
+  const orders = await OrderModel.find({ buyerId: new mongoose.Types.ObjectId(userId) }).sort({
+    createdAt: -1,
+  });
+  const buyer = await UserModel.findById(userId);
+  res.json(orders.map((o) => formatOrder(o, buyer?.name ?? "")));
 });
 
 router.post("/orders", requireAuth, async (req, res): Promise<void> => {
@@ -41,88 +41,75 @@ router.post("/orders", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   const { userId } = (req as Request & { user: JwtPayload }).user;
+  const userOid = new mongoose.Types.ObjectId(userId);
 
-  const cartRows = await db
-    .select({ cartItem: cartItemsTable, product: productsTable })
-    .from(cartItemsTable)
-    .leftJoin(productsTable, eq(cartItemsTable.productId, productsTable.id))
-    .where(eq(cartItemsTable.userId, userId));
-
-  if (cartRows.length === 0) {
+  const cartItems = await CartItemModel.find({ userId: userOid });
+  if (cartItems.length === 0) {
     res.status(400).json({ error: "Cart is empty" });
     return;
   }
 
+  const productIds = cartItems.map((c) => c.productId);
+  const products = await ProductModel.find({ _id: { $in: productIds } });
+  const productMap = new Map(products.map((p) => [p._id.toString(), p]));
+
   let subtotal = 0;
   let discount = 0;
-  const items = cartRows
-    .filter(r => r.product != null)
-    .map(r => {
-      const p = r.product!;
-      const price = parseFloat(p.price as unknown as string);
-      const discountPercent = parseFloat(p.discountPercent as unknown as string);
-      const itemTotal = price * r.cartItem.quantity;
-      const itemDiscount = (discountPercent / 100) * itemTotal;
+  const items = cartItems
+    .map((c) => {
+      const p = productMap.get(c.productId.toString());
+      if (!p) return null;
+      const itemTotal = p.price * c.quantity;
+      const itemDiscount = (p.discountPercent / 100) * itemTotal;
       subtotal += itemTotal;
       discount += itemDiscount;
       return {
-        productId: p.id,
+        productId: p._id.toString(),
         productName: p.name,
-        quantity: r.cartItem.quantity,
-        price,
+        quantity: c.quantity,
+        price: p.price,
         imageUrl: p.imageUrl,
       };
-    });
+    })
+    .filter(Boolean) as NonNullable<ReturnType<typeof cartItems.map>[number]>[];
 
   const total = subtotal - discount;
-  const [buyer] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  const buyer = await UserModel.findById(userId);
 
-  const [order] = await db.insert(ordersTable).values({
-    buyerId: userId,
-    items: items as unknown as typeof ordersTable.$inferSelect.items,
-    subtotal: subtotal.toFixed(2) as unknown as typeof ordersTable.$inferSelect.subtotal,
-    discount: discount.toFixed(2) as unknown as typeof ordersTable.$inferSelect.discount,
-    total: total.toFixed(2) as unknown as typeof ordersTable.$inferSelect.total,
+  const order = await OrderModel.create({
+    buyerId: userOid,
+    items,
+    subtotal: Math.round(subtotal * 100) / 100,
+    discount: Math.round(discount * 100) / 100,
+    total: Math.round(total * 100) / 100,
     shippingAddress: parsed.data.shippingAddress,
     paymentMethod: parsed.data.paymentMethod,
-  }).returning();
+  });
 
-  // Clear cart after order
-  await db.delete(cartItemsTable).where(eq(cartItemsTable.userId, userId));
+  await CartItemModel.deleteMany({ userId: userOid });
 
   res.status(201).json(formatOrder(order, buyer?.name ?? ""));
 });
 
 router.get("/orders/:id", requireAuth, async (req, res): Promise<void> => {
-  const params = GetOrderParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-  const { userId } = (req as Request & { user: JwtPayload }).user;
-  const rows = await db
-    .select({ order: ordersTable, buyerName: usersTable.name })
-    .from(ordersTable)
-    .leftJoin(usersTable, eq(ordersTable.buyerId, usersTable.id))
-    .where(eq(ordersTable.id, params.data.id))
-    .limit(1);
-
-  if (rows.length === 0) {
+  const id = String(req.params.id);
+  if (!mongoose.Types.ObjectId.isValid(id)) {
     res.status(404).json({ error: "Order not found" });
     return;
   }
-  const r = rows[0];
-  // Only buyer or sellers can see the order
-  if (r.order.buyerId !== userId) {
-    // Check if any item belongs to this seller's products — simplified: allow any authenticated user for now
+  const order = await OrderModel.findById(id);
+  if (!order) {
+    res.status(404).json({ error: "Order not found" });
+    return;
   }
-  res.json(formatOrder(r.order, r.buyerName ?? ""));
+  const buyer = await UserModel.findById(order.buyerId);
+  res.json(formatOrder(order, buyer?.name ?? ""));
 });
 
 router.patch("/orders/:id/status", requireAuth, async (req, res): Promise<void> => {
-  const params = UpdateOrderStatusParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+  const id = String(req.params.id);
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    res.status(404).json({ error: "Order not found" });
     return;
   }
   const parsed = UpdateOrderStatusBody.safeParse(req.body);
@@ -131,16 +118,16 @@ router.patch("/orders/:id/status", requireAuth, async (req, res): Promise<void> 
     return;
   }
 
-  const [order] = await db.update(ordersTable)
-    .set({ status: parsed.data.status })
-    .where(eq(ordersTable.id, params.data.id))
-    .returning();
-
+  const order = await OrderModel.findByIdAndUpdate(
+    id,
+    { $set: { status: parsed.data.status } },
+    { new: true },
+  );
   if (!order) {
     res.status(404).json({ error: "Order not found" });
     return;
   }
-  const [buyer] = await db.select().from(usersTable).where(eq(usersTable.id, order.buyerId)).limit(1);
+  const buyer = await UserModel.findById(order.buyerId);
   res.json(formatOrder(order, buyer?.name ?? ""));
 });
 
