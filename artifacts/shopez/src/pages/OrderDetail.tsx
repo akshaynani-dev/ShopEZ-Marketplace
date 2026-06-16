@@ -9,8 +9,8 @@ import { Separator } from "@/components/ui/separator";
 
 export function OrderDetail() {
   const [, params] = useRoute("/orders/:id");
-  const id = Number(params?.id);
-  const { data: order, isLoading } = useGetOrder(id, { query: { enabled: !!id } });
+  const id = params?.id ?? "";
+  const { data: order, isLoading } = useGetOrder(id, { query: { enabled: !!id } as any });
 
   if (isLoading || !order) {
     return (

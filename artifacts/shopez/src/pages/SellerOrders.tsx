@@ -19,7 +19,7 @@ export function SellerOrders() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const handleStatusChange = (orderId: number, newStatus: OrderStatusUpdateStatus) => {
+  const handleStatusChange = (orderId: string, newStatus: OrderStatusUpdateStatus) => {
     updateStatus.mutate(
       // @ts-ignore
       { id: orderId, data: { status: newStatus } },

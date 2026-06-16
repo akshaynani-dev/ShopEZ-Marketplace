@@ -100,7 +100,7 @@ export function SellerProducts() {
     setIsCreateOpen(true);
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = (id: string) => {
     if (confirm("Are you sure you want to delete this product?")) {
       deleteProduct.mutate(
         // @ts-ignore

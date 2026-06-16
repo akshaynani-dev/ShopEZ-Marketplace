@@ -31,7 +31,7 @@ export function Cart() {
     );
   }
 
-  const handleUpdateQuantity = (productId: number, quantity: number) => {
+  const handleUpdateQuantity = (productId: string, quantity: number) => {
     // Assuming the mutation takes { productId, data }
     // We will just use `id` or `productId` depending on the generated client. Usually it's the first param named `productId` so the object takes `{ productId, data }`
     // Let's pass it as any to avoid ts errors if the naming differs slightly.
@@ -45,7 +45,7 @@ export function Cart() {
     );
   };
 
-  const handleRemove = (productId: number) => {
+  const handleRemove = (productId: string) => {
     removeCartItem.mutate(
       { productId } as any,
       {

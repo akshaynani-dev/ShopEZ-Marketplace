@@ -13,9 +13,9 @@ import { format } from "date-fns";
 
 export function ProductDetail() {
   const [, params] = useRoute("/products/:id");
-  const id = Number(params?.id);
-  const { data: product, isLoading } = useGetProduct(id, { query: { enabled: !!id } });
-  const { data: reviews } = useListReviews(id, { query: { enabled: !!id } });
+  const id = params?.id ?? "";
+  const { data: product, isLoading } = useGetProduct(id, { query: { enabled: !!id } as any });
+  const { data: reviews } = useListReviews(id, { query: { enabled: !!id } as any });
   const [quantity, setQuantity] = useState(1);
   const addToCart = useAddCartItem();
   const queryClient = useQueryClient();

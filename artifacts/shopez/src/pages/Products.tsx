@@ -1,15 +1,14 @@
 import { Layout } from "@/components/layout/Layout";
-import { useListProducts, getListProductsQueryKey, useGetCategories } from "@workspace/api-client-react";
+import { useListProducts, useGetCategories } from "@workspace/api-client-react";
 import type { ListProductsSort } from "@workspace/api-client-react";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Link, useLocation, useSearch } from "wouter";
-import { Star, Search, SlidersHorizontal } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { useLocation, useSearch } from "wouter";
+import { Search } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { useDebounce } from "@/hooks/use-debounce";
+import { ProductCard } from "@/components/ProductCard";
 
 export function Products() {
   const searchString = useSearch();
@@ -96,45 +95,7 @@ export function Products() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {productsData?.products.map(product => (
-              <Link key={product.id} href={`/products/${product.id}`}>
-                <Card className="group h-full overflow-hidden hover:shadow-lg transition-all duration-300 border-none bg-card hover:bg-accent/5">
-                  <div className="aspect-square relative overflow-hidden bg-muted/20">
-                    {product.imageUrl ? (
-                      <img 
-                        src={product.imageUrl} 
-                        alt={product.name}
-                        className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                        No Image
-                      </div>
-                    )}
-                    {product.discountPercent > 0 && (
-                      <Badge variant="destructive" className="absolute top-3 left-3">
-                        {product.discountPercent}% OFF
-                      </Badge>
-                    )}
-                  </div>
-                  <CardContent className="p-5">
-                    <div className="text-xs font-medium text-muted-foreground mb-2">{product.category}</div>
-                    <h3 className="font-semibold text-lg line-clamp-1 mb-1">{product.name}</h3>
-                    <div className="flex items-center gap-1 mb-3">
-                      <Star className="w-4 h-4 fill-primary text-primary" />
-                      <span className="text-sm font-medium">{product.rating.toFixed(1)}</span>
-                      <span className="text-sm text-muted-foreground">({product.reviewCount})</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-lg">${product.price.toFixed(2)}</span>
-                      {product.discountPercent > 0 && (
-                        <span className="text-sm text-muted-foreground line-through">
-                          ${(product.price / (1 - product.discountPercent / 100)).toFixed(2)}
-                        </span>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
+              <ProductCard key={product.id} product={product} />
             ))}
           </div>
         )}
