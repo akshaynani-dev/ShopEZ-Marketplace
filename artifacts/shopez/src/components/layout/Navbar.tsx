@@ -22,8 +22,14 @@ export function Navbar() {
             <Link href="/products" className="flex items-center text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
               Products
             </Link>
-            <Link href="/categories" className="flex items-center text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
-              Categories
+            <Link href="/cart" className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground relative">
+              <ShoppingCart className="h-4 w-4" />
+              Cart
+              {cartItemCount > 0 && (
+                <span className="absolute -top-2 -right-3 h-4 w-4 rounded-full bg-primary text-[10px] font-bold text-primary-foreground flex items-center justify-center">
+                  {cartItemCount}
+                </span>
+              )}
             </Link>
           </nav>
         </div>
