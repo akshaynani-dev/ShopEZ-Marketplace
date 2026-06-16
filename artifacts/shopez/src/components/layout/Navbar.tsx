@@ -6,7 +6,7 @@ import { ShoppingCart, Package, LogOut, LayoutDashboard, User as UserIcon } from
 
 export function Navbar() {
   const { user, logout } = useAuth();
-  const { data: cart } = useGetCart({ query: { enabled: !!user && user.role === 'buyer' } as any });
+  const { data: cart } = useGetCart({ query: { retry: false, throwOnError: false } as any });
 
   const cartItemCount = cart?.items?.reduce((acc, item) => acc + item.quantity, 0) || 0;
 
