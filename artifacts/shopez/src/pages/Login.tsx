@@ -15,6 +15,11 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+const DEMO_ACCOUNTS = [
+  { label: "Trader", email: "alice@shopez.com", password: "password123" },
+  { label: "Admin", email: "admin@shopez.com", password: "password123" },
+];
+
 export function Login() {
   const loginMutation = useLogin();
   const { login } = useAuth();
@@ -22,7 +27,7 @@ export function Login() {
 
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: "", password: "" },
+    defaultValues: { email: "alice@shopez.com", password: "password123" },
   });
 
   function onSubmit(values: z.infer<typeof loginSchema>) {
@@ -49,20 +54,38 @@ export function Login() {
           <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
           <CardDescription>Sign in to your ShopEZ Trade account</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {/* Demo account switcher */}
+          <div className="flex gap-2">
+            {DEMO_ACCOUNTS.map((acc) => (
+              <button
+                key={acc.email}
+                type="button"
+                onClick={() => { form.setValue("email", acc.email); form.setValue("password", acc.password); }}
+                className={`flex-1 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted ${form.watch("email") === acc.email ? "border-primary bg-primary/5 text-primary" : "text-muted-foreground"}`}
+              >
+                {acc.label}
+              </button>
+            ))}
+          </div>
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField control={form.control} name="email" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Email</FormLabel>
-                  <FormControl><Input placeholder="name@example.com" {...field} /></FormControl>
+                  <FormControl>
+                    <Input autoComplete="email" {...field} />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
               <FormField control={form.control} name="password" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Password</FormLabel>
-                  <FormControl><Input type="password" placeholder="••••••••" {...field} /></FormControl>
+                  <FormControl>
+                    <Input type="password" autoComplete="current-password" {...field} />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -74,11 +97,6 @@ export function Login() {
               </Button>
             </form>
           </Form>
-          <div className="mt-4 p-3 bg-muted/50 rounded-lg text-xs text-muted-foreground space-y-1">
-            <p className="font-medium">Demo accounts:</p>
-            <p>Trader: alice@shopez.com / password123</p>
-            <p>Admin: admin@shopez.com / password123</p>
-          </div>
         </CardContent>
         <CardFooter className="flex justify-center">
           <p className="text-sm text-muted-foreground">
