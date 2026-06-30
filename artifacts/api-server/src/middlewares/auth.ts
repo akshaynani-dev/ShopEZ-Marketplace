@@ -36,10 +36,10 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   next();
 }
 
-export function requireSeller(req: Request, res: Response, next: NextFunction): void {
+export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   const user = (req as Request & { user?: JwtPayload }).user;
-  if (!user || user.role !== "seller") {
-    res.status(403).json({ error: "Sellers only" });
+  if (!user || user.role !== "admin") {
+    res.status(403).json({ error: "Admins only" });
     return;
   }
   next();

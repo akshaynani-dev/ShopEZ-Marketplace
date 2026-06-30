@@ -4,6 +4,7 @@ import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { connectDB } from "@workspace/db";
+import { seedStocks } from "./routes/admin";
 
 const app: Express = express();
 
@@ -49,6 +50,12 @@ async function connectWithRetry(retries = 5, delayMs = 3000): Promise<void> {
   process.exit(1);
 }
 
-connectWithRetry();
+async function init(): Promise<void> {
+  await connectWithRetry();
+  const count = await seedStocks();
+  if (count > 0) logger.info({ count }, "Stock data seeded");
+}
+
+init();
 
 export default app;

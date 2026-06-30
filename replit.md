@@ -1,6 +1,6 @@
 # ShopEZ
 
-ShopEZ is a full-stack e-commerce marketplace where buyers discover and purchase products, and sellers manage their storefront and analytics.
+ShopEZ is a full-stack **virtual stock trading platform** where users practice buying and selling real-world stocks using a $100,000 virtual balance — risk-free.
 
 ## Run & Operate
 
@@ -9,46 +9,51 @@ ShopEZ is a full-stack e-commerce marketplace where buyers discover and purchase
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string, `SESSION_SECRET` — JWT signing secret
+- Required env: `MONGODB_URI` — MongoDB connection string, `SESSION_SECRET` — JWT signing secret
 
 ## Demo Accounts
 
-- **Seller:** `seller@shopez.com` / `password123`
-- **Buyer:** `buyer@shopez.com` / `password123`
-- **Seller 2:** `marcus@shopez.com` / `password123`
+- **Trader:** `alice@shopez.com` / `password123`
+- **Admin:** `admin@shopez.com` / `password123`
+
+> Demo users are seeded by calling `POST /api/auth/register` on first run.  
+> Stocks (20) are auto-seeded on server startup via `seedStocks()` in app.ts.
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
 - Frontend: React + Vite, Tailwind CSS, React Query, Recharts, Wouter
 - API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
+- DB: MongoDB + Mongoose (replacing old PostgreSQL/Drizzle)
+- Validation: Zod (imported as `"zod"` — not `"zod/v4"` — in API server routes)
 - Auth: JWT (jsonwebtoken) + bcryptjs, token stored in localStorage
-- API codegen: Orval (from OpenAPI spec)
+- API codegen: Orval (from OpenAPI spec, mode: "single")
 - Build: esbuild (CJS bundle)
 
 ## Where things live
 
 - `lib/api-spec/openapi.yaml` — OpenAPI spec (source of truth for API contracts)
-- `lib/db/src/schema/` — Drizzle schema (users, products, reviews, cart, orders)
-- `artifacts/api-server/src/routes/` — Express route handlers (auth, products, reviews, cart, orders, seller)
-- `artifacts/api-server/src/middlewares/auth.ts` — JWT middleware (requireAuth, requireSeller)
+- `lib/db/src/` — Mongoose models: User, Stock, Transaction, Holding
+- `artifacts/api-server/src/routes/` — Express routes: auth, stocks, trading, portfolio, admin
+- `artifacts/api-server/src/middlewares/auth.ts` — JWT middleware (requireAuth, requireAdmin)
 - `artifacts/shopez/src/` — React frontend
+- `artifacts/shopez/src/pages/` — Home, Market, StockDetail, Portfolio, Transactions, AdminDashboard, Login, Register
 
 ## Architecture decisions
 
 - JWT stored in localStorage and injected via custom-fetch.ts automatically for all API requests
-- Orders store item snapshots as JSONB (productId, name, price, quantity, imageUrl) for immutable history
-- Seller analytics (stats, sales chart, top products) computed server-side from orders JSONB without a separate analytics table
-- Buyer and seller share the same `/products` CRUD — sellers are scoped to their own products via sellerId check
-- Cart is persisted in the database (not localStorage) so it survives sessions
+- Stocks auto-seeded (20 stocks with 30-day historical data) on first server startup
+- Historical price data stored in Stock document as embedded array (`historicalData[]`)
+- Portfolio holdings tracked in separate Holding collection (userId + symbol + avgBuyPrice + quantity)
+- Transactions stored immutably in Transaction collection
+- Buy/sell updates both Holding and User.virtualBalance atomically
+- Admin role can manage users (balance adjustment), stocks (add/delete), and view all transactions
+- Zod must be imported from `"zod"` (not `"zod/v4"`) in API server routes — esbuild can't resolve the subpath
 
 ## Product
 
-- **Buyers:** Browse product catalog, filter by category/price/sort, view product details with reviews, manage cart, checkout, track orders
-- **Sellers:** Dashboard with revenue stats and sales chart, product management (add/edit/delete), order fulfillment with status updates
+- **Traders (user role):** Browse 20 listed stocks, view 30-day price chart, buy/sell with virtual balance, track portfolio holdings + P&L, view transaction history
+- **Admins:** Manage users (edit virtual balance), manage stocks (add/delete/seed), view all platform transactions
 
 ## User preferences
 
@@ -58,7 +63,9 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 - Always run `pnpm run typecheck:libs` before artifact typechecks when schema files change
 - After every OpenAPI spec change, re-run `pnpm --filter @workspace/api-spec run codegen`
-- The products route has `/products/featured` and `/products/categories` BEFORE `/products/:id` — order matters in Express 5
+- After codegen, fix `lib/api-zod/src/index.ts` with: `echo "export * from './generated/api';" > lib/api-zod/src/index.ts`
+- Import zod as `"zod"` not `"zod/v4"` in API server routes (esbuild can't resolve subpath)
+- Express 5 params type is `string | string[]` — use `String(req.params.x)` when calling string methods
 
 ## Pointers
 

@@ -1,104 +1,114 @@
-import { Layout } from "@/components/layout/Layout";
-import { useGetFeaturedProducts, useGetCategories } from "@workspace/api-client-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { ArrowRight, ShoppingBag, TrendingUp, ShieldCheck } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { ProductCard } from "@/components/ProductCard";
+import { useGetMovers, useGetStocks } from "@workspace/api-client-react";
+import { StockCard } from "@/components/StockCard";
+import { Layout } from "@/components/layout/Layout";
+import { Button } from "@/components/ui/button";
+import { TrendingUp, TrendingDown, BarChart2, ArrowRight } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function Home() {
-  const { data: featuredProducts, isLoading: loadingFeatured } = useGetFeaturedProducts();
-  const { data: categories, isLoading: loadingCategories } = useGetCategories();
+  const { data: movers, isLoading: moversLoading } = useGetMovers();
+  const { data: stocksData } = useGetStocks();
+  const { user } = useAuth();
+
+  const totalStocks = stocksData?.stocks.length ?? 0;
+  const avgChange =
+    totalStocks > 0
+      ? (stocksData?.stocks.reduce((s, x) => s + x.changePercent, 0) ?? 0) / totalStocks
+      : 0;
+  const gainers = stocksData?.stocks.filter((s) => s.changePercent > 0).length ?? 0;
 
   return (
     <Layout>
-      <div className="flex flex-col gap-16 pb-16">
-        
-        {/* Hero Section */}
-        <section className="relative overflow-hidden rounded-3xl bg-primary/5 px-6 py-24 md:px-12 md:py-32 flex flex-col items-center text-center">
-          <div className="absolute inset-0 bg-grid-black/[0.02] bg-[size:20px_20px]" />
-          <Badge variant="secondary" className="mb-6 z-10 font-medium">
-            Next Generation Marketplace
-          </Badge>
-          <h1 className="z-10 max-w-3xl text-4xl font-extrabold tracking-tight sm:text-5xl md:text-6xl lg:text-7xl">
-            Effortless shopping.<br />
-            <span className="text-primary">Powerful selling.</span>
-          </h1>
-          <p className="z-10 mt-6 max-w-2xl text-lg text-muted-foreground md:text-xl">
-            Discover premium products from verified sellers, or open your own storefront and reach thousands of customers today.
-          </p>
-          <div className="z-10 mt-10 flex flex-col sm:flex-row gap-4">
-            <Link href="/products">
-              <Button size="lg" className="h-12 px-8 text-base">
-                Start Shopping
-              </Button>
-            </Link>
-            <Link href="/register">
-              <Button size="lg" variant="outline" className="h-12 px-8 text-base bg-background/50 backdrop-blur-sm">
-                Become a Seller
-              </Button>
-            </Link>
+      <section className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-background to-background border-b">
+        <div className="container py-16 md:py-24">
+          <div className="max-w-2xl">
+            <div className="inline-flex items-center gap-1.5 text-xs font-medium text-primary bg-primary/10 px-3 py-1 rounded-full mb-4">
+              <BarChart2 className="h-3.5 w-3.5" />
+              Virtual Stock Trading Platform
+            </div>
+            <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">
+              Trade Smarter with <span className="text-primary">ShopEZ</span>
+            </h1>
+            <p className="text-muted-foreground text-lg mb-8">
+              Explore real-world stocks, track market trends, and practice trading with $100,000 in virtual funds — risk-free.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              {!user ? (
+                <>
+                  <Link href="/register"><Button size="lg">Start Trading Free</Button></Link>
+                  <Link href="/market"><Button variant="outline" size="lg">Explore Market</Button></Link>
+                </>
+              ) : (
+                <>
+                  <Link href="/market"><Button size="lg">Browse Market</Button></Link>
+                  <Link href="/portfolio"><Button variant="outline" size="lg">My Portfolio</Button></Link>
+                </>
+              )}
+            </div>
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* Features */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <Card className="bg-muted/50 border-none">
-            <CardContent className="pt-6">
-              <div className="rounded-full w-12 h-12 bg-primary/10 flex items-center justify-center mb-4">
-                <ShoppingBag className="w-6 h-6 text-primary" />
-              </div>
-              <h3 className="font-semibold text-lg mb-2">Curated Selection</h3>
-              <p className="text-muted-foreground text-sm">Explore thousands of high-quality products handpicked for you.</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-muted/50 border-none">
-            <CardContent className="pt-6">
-              <div className="rounded-full w-12 h-12 bg-primary/10 flex items-center justify-center mb-4">
-                <TrendingUp className="w-6 h-6 text-primary" />
-              </div>
-              <h3 className="font-semibold text-lg mb-2">Seller Dashboard</h3>
-              <p className="text-muted-foreground text-sm">Powerful analytics and inventory management to grow your business.</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-muted/50 border-none">
-            <CardContent className="pt-6">
-              <div className="rounded-full w-12 h-12 bg-primary/10 flex items-center justify-center mb-4">
-                <ShieldCheck className="w-6 h-6 text-primary" />
-              </div>
-              <h3 className="font-semibold text-lg mb-2">Secure Checkout</h3>
-              <p className="text-muted-foreground text-sm">Safe, fast, and reliable payments with buyer protection.</p>
-            </CardContent>
-          </Card>
-        </section>
+      <div className="container py-10 space-y-12">
+        <div className="grid grid-cols-3 gap-4">
+          <div className="rounded-xl border bg-card p-5">
+            <p className="text-xs text-muted-foreground mb-1">Listed Stocks</p>
+            <p className="text-2xl font-bold">{totalStocks}</p>
+          </div>
+          <div className="rounded-xl border bg-card p-5">
+            <p className="text-xs text-muted-foreground mb-1">Advancing</p>
+            <p className="text-2xl font-bold text-emerald-500">{gainers}</p>
+          </div>
+          <div className="rounded-xl border bg-card p-5">
+            <p className="text-xs text-muted-foreground mb-1">Market Avg</p>
+            <p className={`text-2xl font-bold ${avgChange >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+              {avgChange >= 0 ? "+" : ""}{avgChange.toFixed(2)}%
+            </p>
+          </div>
+        </div>
 
-        {/* Featured Products */}
         <section>
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-3xl font-bold tracking-tight">Featured Products</h2>
-            <Link href="/products">
-              <Button variant="ghost" className="gap-2">
-                View all <ArrowRight className="w-4 h-4" />
-              </Button>
-            </Link>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-emerald-500" />
+              <h2 className="text-xl font-bold">Top Gainers</h2>
+            </div>
+            <Link href="/market"><Button variant="ghost" size="sm" className="gap-1">See all <ArrowRight className="h-3.5 w-3.5" /></Button></Link>
           </div>
-          
-          {loadingFeatured ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {[1, 2, 3, 4].map(i => (
-                <div key={i} className="h-[400px] rounded-xl bg-muted animate-pulse" />
-              ))}
+          {moversLoading ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+              {Array.from({ length: 5 }).map((_, i) => <div key={i} className="rounded-xl border bg-muted/40 h-28 animate-pulse" />)}
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {featuredProducts?.map(product => (
-                <ProductCard key={product.id} product={product} />
-              ))}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+              {movers?.gainers.map((s) => <StockCard key={s.symbol} stock={s} />)}
             </div>
           )}
         </section>
 
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <TrendingDown className="h-5 w-5 text-red-500" />
+              <h2 className="text-xl font-bold">Top Losers</h2>
+            </div>
+            <Link href="/market"><Button variant="ghost" size="sm" className="gap-1">See all <ArrowRight className="h-3.5 w-3.5" /></Button></Link>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+            {movers?.losers.map((s) => <StockCard key={s.symbol} stock={s} />)}
+          </div>
+        </section>
+
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold">All Stocks</h2>
+            <Link href="/market"><Button variant="ghost" size="sm" className="gap-1">View market <ArrowRight className="h-3.5 w-3.5" /></Button></Link>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {stocksData?.stocks.slice(0, 8).map((s) => <StockCard key={s.symbol} stock={s} />)}
+          </div>
+        </section>
       </div>
     </Layout>
   );

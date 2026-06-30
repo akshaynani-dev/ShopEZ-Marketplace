@@ -1,14 +1,13 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
 import { useEffect } from "react";
-import { UserRole } from "@workspace/api-client-react";
 
-export function ProtectedRoute({ 
-  children, 
-  allowedRoles 
-}: { 
-  children: React.ReactNode, 
-  allowedRoles?: UserRole[] 
+export function ProtectedRoute({
+  children,
+  allowedRoles,
+}: {
+  children: React.ReactNode;
+  allowedRoles?: string[];
 }) {
   const { user, isLoading } = useAuth();
   const [, setLocation] = useLocation();
@@ -22,12 +21,14 @@ export function ProtectedRoute({
   }, [user, isLoading, setLocation, allowedRoles]);
 
   if (isLoading || !user) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-muted-foreground">Loading...</div>
+      </div>
+    );
   }
 
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return null; // Will redirect
-  }
+  if (allowedRoles && !allowedRoles.includes(user.role)) return null;
 
   return <>{children}</>;
 }

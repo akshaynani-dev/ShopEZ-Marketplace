@@ -1,12 +1,35 @@
 import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
 import { UserModel } from "@workspace/db";
-import { RegisterBody, LoginBody } from "@workspace/api-zod";
 import { signToken, requireAuth } from "../middlewares/auth";
 import type { JwtPayload } from "../middlewares/auth";
 import type { Request } from "express";
+import { z } from "zod";
 
 const router: IRouter = Router();
+
+const RegisterBody = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+  password: z.string().min(6),
+  role: z.enum(["user", "admin"]).default("user"),
+});
+
+const LoginBody = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+
+function formatUser(user: InstanceType<typeof UserModel>) {
+  return {
+    id: user._id.toString(),
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    virtualBalance: user.virtualBalance,
+    createdAt: user.createdAt.toISOString(),
+  };
+}
 
 router.post("/auth/register", async (req, res): Promise<void> => {
   const parsed = RegisterBody.safeParse(req.body);
@@ -24,18 +47,8 @@ router.post("/auth/register", async (req, res): Promise<void> => {
 
   const passwordHash = await bcrypt.hash(password, 10);
   const user = await UserModel.create({ name, email, passwordHash, role });
-
   const token = signToken({ userId: user._id.toString(), role: user.role });
-  res.status(201).json({
-    token,
-    user: {
-      id: user._id.toString(),
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      createdAt: user.createdAt.toISOString(),
-    },
-  });
+  res.status(201).json({ token, user: formatUser(user) });
 });
 
 router.post("/auth/login", async (req, res): Promise<void> => {
@@ -47,28 +60,13 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   const { email, password } = parsed.data;
 
   const user = await UserModel.findOne({ email });
-  if (!user) {
-    res.status(401).json({ error: "Invalid email or password" });
-    return;
-  }
-
-  const valid = await bcrypt.compare(password, user.passwordHash);
-  if (!valid) {
+  if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
     res.status(401).json({ error: "Invalid email or password" });
     return;
   }
 
   const token = signToken({ userId: user._id.toString(), role: user.role });
-  res.json({
-    token,
-    user: {
-      id: user._id.toString(),
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      createdAt: user.createdAt.toISOString(),
-    },
-  });
+  res.json({ token, user: formatUser(user) });
 });
 
 router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
@@ -78,13 +76,7 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     res.status(404).json({ error: "User not found" });
     return;
   }
-  res.json({
-    id: user._id.toString(),
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    createdAt: user.createdAt.toISOString(),
-  });
+  res.json(formatUser(user));
 });
 
 export default router;

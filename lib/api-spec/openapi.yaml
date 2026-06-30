@@ -1,44 +1,42 @@
 openapi: 3.1.0
 info:
-  title: Api
-  version: 0.1.0
-  description: ShopEZ API specification
+  title: ShopEZ Trade
+  version: 1.0.0
+  description: Stock trading platform API
+
 servers:
   - url: /api
-    description: Base API path
+
 tags:
   - name: health
-    description: Health operations
   - name: auth
-    description: Authentication
-  - name: products
-    description: Product catalog
-  - name: reviews
-    description: Product reviews
-  - name: cart
-    description: Shopping cart
-  - name: orders
-    description: Orders
-  - name: seller
-    description: Seller dashboard
+  - name: stocks
+  - name: trading
+  - name: portfolio
+  - name: admin
+
 paths:
   /healthz:
     get:
-      operationId: healthCheck
       tags: [health]
+      operationId: healthCheck
       summary: Health check
       responses:
         "200":
-          description: Healthy
+          description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/HealthStatus"
+                type: object
+                properties:
+                  status:
+                    type: string
+                required: [status]
 
   /auth/register:
     post:
-      operationId: register
       tags: [auth]
+      operationId: register
       summary: Register a new user
       requestBody:
         required: true
@@ -48,16 +46,20 @@ paths:
               $ref: "#/components/schemas/RegisterInput"
       responses:
         "201":
-          description: Registered
+          description: User created
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Validation error
+        "409":
+          description: Email already exists
 
   /auth/login:
     post:
-      operationId: login
       tags: [auth]
+      operationId: login
       summary: Login
       requestBody:
         required: true
@@ -72,12 +74,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
 
   /auth/me:
     get:
-      operationId: getMe
       tags: [auth]
+      operationId: getMe
       summary: Get current user
+      security:
+        - bearerAuth: []
       responses:
         "200":
           description: Current user
@@ -85,18 +91,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
 
-  /products:
+  /stocks:
     get:
-      operationId: listProducts
-      tags: [products]
-      summary: List products
+      tags: [stocks]
+      operationId: getStocks
+      summary: List all stocks
       parameters:
-        - name: category
+        - name: q
           in: query
           schema:
             type: string
-        - name: search
+        - name: sector
           in: query
           schema:
             type: string
@@ -104,102 +112,244 @@ paths:
           in: query
           schema:
             type: string
-            enum: [price_asc, price_desc, rating, newest]
-        - name: minPrice
-          in: query
-          schema:
-            type: number
-        - name: maxPrice
-          in: query
-          schema:
-            type: number
-        - name: page
-          in: query
-          schema:
-            type: integer
-        - name: limit
-          in: query
-          schema:
-            type: integer
+            enum: [price_asc, price_desc, change_asc, change_desc, name_asc]
       responses:
         "200":
-          description: Product list
+          description: Stock list
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ProductList"
+                type: object
+                properties:
+                  stocks:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Stock"
+                  sectors:
+                    type: array
+                    items:
+                      type: string
+                required: [stocks, sectors]
+
+  /stocks/movers:
+    get:
+      tags: [stocks]
+      operationId: getMovers
+      summary: Get top gainers and losers
+      responses:
+        "200":
+          description: Market movers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  gainers:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Stock"
+                  losers:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Stock"
+                required: [gainers, losers]
+
+  /stocks/{symbol}:
+    get:
+      tags: [stocks]
+      operationId: getStock
+      summary: Get stock details
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Stock detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Stock"
+        "404":
+          description: Not found
+
+  /trade/buy:
     post:
-      operationId: createProduct
-      tags: [products]
-      summary: Create a product (seller)
+      tags: [trading]
+      operationId: buyStock
+      summary: Buy shares of a stock
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ProductInput"
+              $ref: "#/components/schemas/TradeInput"
+      responses:
+        "200":
+          description: Trade executed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TradeResult"
+        "400":
+          description: Insufficient funds or invalid input
+        "404":
+          description: Stock not found
+
+  /trade/sell:
+    post:
+      tags: [trading]
+      operationId: sellStock
+      summary: Sell shares of a stock
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TradeInput"
+      responses:
+        "200":
+          description: Trade executed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TradeResult"
+        "400":
+          description: Insufficient shares or invalid input
+        "404":
+          description: Stock not found
+
+  /portfolio:
+    get:
+      tags: [portfolio]
+      operationId: getPortfolio
+      summary: Get user portfolio
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Portfolio data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Portfolio"
+
+  /portfolio/transactions:
+    get:
+      tags: [portfolio]
+      operationId: getTransactions
+      summary: Get user transaction history
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Transactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Transaction"
+
+  /admin/users:
+    get:
+      tags: [admin]
+      operationId: adminGetUsers
+      summary: List all users
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Users list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+
+  /admin/users/{userId}/balance:
+    patch:
+      tags: [admin]
+      operationId: adminUpdateBalance
+      summary: Update user virtual balance
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                virtualBalance:
+                  type: number
+              required: [virtualBalance]
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /admin/stocks:
+    get:
+      tags: [admin]
+      operationId: adminGetStocks
+      summary: List all stocks (admin)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Stocks list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Stock"
+    post:
+      tags: [admin]
+      operationId: adminCreateStock
+      summary: Create a new stock
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StockInput"
       responses:
         "201":
-          description: Created
+          description: Stock created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Product"
+                $ref: "#/components/schemas/Stock"
 
-  /products/featured:
-    get:
-      operationId: getFeaturedProducts
-      tags: [products]
-      summary: Get featured/top-rated products
-      responses:
-        "200":
-          description: Featured products
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Product"
-
-  /products/categories:
-    get:
-      operationId: getCategories
-      tags: [products]
-      summary: Get all product categories
-      responses:
-        "200":
-          description: Categories
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Category"
-
-  /products/{id}:
-    get:
-      operationId: getProduct
-      tags: [products]
-      summary: Get product by ID
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Product
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Product"
+  /admin/stocks/{symbol}:
     patch:
-      operationId: updateProduct
-      tags: [products]
-      summary: Update product (seller)
+      tags: [admin]
+      operationId: adminUpdateStock
+      summary: Update a stock
+      security:
+        - bearerAuth: []
       parameters:
-        - name: id
+        - name: symbol
           in: path
           required: true
           schema:
@@ -209,20 +359,22 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ProductUpdate"
+              $ref: "#/components/schemas/StockInput"
       responses:
         "200":
-          description: Updated product
+          description: Updated stock
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Product"
+                $ref: "#/components/schemas/Stock"
     delete:
-      operationId: deleteProduct
-      tags: [products]
-      summary: Delete product (seller)
+      tags: [admin]
+      operationId: adminDeleteStock
+      summary: Delete a stock
+      security:
+        - bearerAuth: []
       parameters:
-        - name: id
+        - name: symbol
           in: path
           required: true
           schema:
@@ -231,286 +383,52 @@ paths:
         "204":
           description: Deleted
 
-  /products/{productId}/reviews:
+  /admin/transactions:
     get:
-      operationId: listReviews
-      tags: [reviews]
-      summary: List reviews for a product
-      parameters:
-        - name: productId
-          in: path
-          required: true
-          schema:
-            type: string
+      tags: [admin]
+      operationId: adminGetTransactions
+      summary: All transactions (admin)
+      security:
+        - bearerAuth: []
       responses:
         "200":
-          description: Reviews
+          description: All transactions
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Review"
+                  $ref: "#/components/schemas/Transaction"
+
+  /admin/seed:
     post:
-      operationId: createReview
-      tags: [reviews]
-      summary: Create a review
-      parameters:
-        - name: productId
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ReviewInput"
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Review"
-
-  /cart:
-    get:
-      operationId: getCart
-      tags: [cart]
-      summary: Get current cart
+      tags: [admin]
+      operationId: adminSeed
+      summary: Seed stock and user data
+      security:
+        - bearerAuth: []
       responses:
         "200":
-          description: Cart
+          description: Seeded
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Cart"
-    delete:
-      operationId: clearCart
-      tags: [cart]
-      summary: Clear cart
-      responses:
-        "204":
-          description: Cleared
-
-  /cart/items:
-    post:
-      operationId: addCartItem
-      tags: [cart]
-      summary: Add item to cart
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CartItemInput"
-      responses:
-        "200":
-          description: Updated cart
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Cart"
-
-  /cart/items/{productId}:
-    patch:
-      operationId: updateCartItem
-      tags: [cart]
-      summary: Update cart item quantity
-      parameters:
-        - name: productId
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CartItemUpdate"
-      responses:
-        "200":
-          description: Updated cart
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Cart"
-    delete:
-      operationId: removeCartItem
-      tags: [cart]
-      summary: Remove item from cart
-      parameters:
-        - name: productId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Updated cart
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Cart"
-
-  /orders:
-    get:
-      operationId: listOrders
-      tags: [orders]
-      summary: List my orders (buyer view)
-      responses:
-        "200":
-          description: Orders
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Order"
-    post:
-      operationId: createOrder
-      tags: [orders]
-      summary: Place order (checkout)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/OrderInput"
-      responses:
-        "201":
-          description: Created order
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Order"
-
-  /orders/{id}:
-    get:
-      operationId: getOrder
-      tags: [orders]
-      summary: Get order detail
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Order
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Order"
-
-  /orders/{id}/status:
-    patch:
-      operationId: updateOrderStatus
-      tags: [orders]
-      summary: Update order status (seller)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/OrderStatusUpdate"
-      responses:
-        "200":
-          description: Updated order
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Order"
-
-  /seller/stats:
-    get:
-      operationId: getSellerStats
-      tags: [seller]
-      summary: Seller dashboard summary stats
-      responses:
-        "200":
-          description: Stats
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SellerStats"
-
-  /seller/sales:
-    get:
-      operationId: getSellerSales
-      tags: [seller]
-      summary: Seller sales over time
-      parameters:
-        - name: period
-          in: query
-          schema:
-            type: string
-            enum: [7d, 30d, 90d]
-      responses:
-        "200":
-          description: Sales data
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/SalesDataPoint"
-
-  /seller/orders:
-    get:
-      operationId: listSellerOrders
-      tags: [seller]
-      summary: List orders for seller's products
-      parameters:
-        - name: status
-          in: query
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Orders
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Order"
-
-  /seller/top-products:
-    get:
-      operationId: getTopProducts
-      tags: [seller]
-      summary: Top selling products for seller
-      responses:
-        "200":
-          description: Top products
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/TopProduct"
+                type: object
+                properties:
+                  message:
+                    type: string
+                  count:
+                    type: number
+                required: [message, count]
 
 components:
-  schemas:
-    HealthStatus:
-      type: object
-      properties:
-        status:
-          type: string
-      required:
-        - status
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
 
+  schemas:
     User:
       type: object
       properties:
@@ -522,10 +440,12 @@ components:
           type: string
         role:
           type: string
-          enum: [buyer, seller]
+          enum: [user, admin]
+        virtualBalance:
+          type: number
         createdAt:
           type: string
-      required: [id, name, email, role, createdAt]
+      required: [id, name, email, role, virtualBalance, createdAt]
 
     RegisterInput:
       type: object
@@ -538,8 +458,8 @@ components:
           type: string
         role:
           type: string
-          enum: [buyer, seller]
-      required: [name, email, password, role]
+          enum: [user, admin]
+      required: [name, email, password]
 
     LoginInput:
       type: object
@@ -559,267 +479,143 @@ components:
           $ref: "#/components/schemas/User"
       required: [token, user]
 
-    Product:
-      type: object
-      properties:
-        id:
-          type: string
-        name:
-          type: string
-        description:
-          type: string
-        price:
-          type: number
-        discountPercent:
-          type: number
-        category:
-          type: string
-        imageUrl:
-          type: string
-        stock:
-          type: integer
-        sellerId:
-          type: string
-        sellerName:
-          type: string
-        rating:
-          type: number
-        reviewCount:
-          type: integer
-        createdAt:
-          type: string
-      required: [id, name, description, price, discountPercent, category, imageUrl, stock, sellerId, sellerName, rating, reviewCount, createdAt]
-
-    ProductList:
-      type: object
-      properties:
-        products:
-          type: array
-          items:
-            $ref: "#/components/schemas/Product"
-        total:
-          type: integer
-        page:
-          type: integer
-        totalPages:
-          type: integer
-      required: [products, total, page, totalPages]
-
-    ProductInput:
-      type: object
-      properties:
-        name:
-          type: string
-        description:
-          type: string
-        price:
-          type: number
-        discountPercent:
-          type: number
-        category:
-          type: string
-        imageUrl:
-          type: string
-        stock:
-          type: integer
-      required: [name, description, price, discountPercent, category, imageUrl, stock]
-
-    ProductUpdate:
-      type: object
-      properties:
-        name:
-          type: string
-        description:
-          type: string
-        price:
-          type: number
-        discountPercent:
-          type: number
-        category:
-          type: string
-        imageUrl:
-          type: string
-        stock:
-          type: integer
-
-    Category:
-      type: object
-      properties:
-        name:
-          type: string
-        count:
-          type: integer
-      required: [name, count]
-
-    Review:
-      type: object
-      properties:
-        id:
-          type: string
-        productId:
-          type: string
-        userId:
-          type: string
-        userName:
-          type: string
-        rating:
-          type: integer
-        comment:
-          type: string
-        createdAt:
-          type: string
-      required: [id, productId, userId, userName, rating, comment, createdAt]
-
-    ReviewInput:
-      type: object
-      properties:
-        rating:
-          type: integer
-        comment:
-          type: string
-      required: [rating, comment]
-
-    CartItem:
-      type: object
-      properties:
-        productId:
-          type: string
-        quantity:
-          type: integer
-        product:
-          $ref: "#/components/schemas/Product"
-      required: [productId, quantity, product]
-
-    Cart:
-      type: object
-      properties:
-        items:
-          type: array
-          items:
-            $ref: "#/components/schemas/CartItem"
-        subtotal:
-          type: number
-        discount:
-          type: number
-        total:
-          type: number
-      required: [items, subtotal, discount, total]
-
-    CartItemInput:
-      type: object
-      properties:
-        productId:
-          type: string
-        quantity:
-          type: integer
-      required: [productId, quantity]
-
-    CartItemUpdate:
-      type: object
-      properties:
-        quantity:
-          type: integer
-      required: [quantity]
-
-    OrderItem:
-      type: object
-      properties:
-        productId:
-          type: string
-        productName:
-          type: string
-        quantity:
-          type: integer
-        price:
-          type: number
-        imageUrl:
-          type: string
-      required: [productId, productName, quantity, price, imageUrl]
-
-    Order:
-      type: object
-      properties:
-        id:
-          type: string
-        buyerId:
-          type: string
-        buyerName:
-          type: string
-        items:
-          type: array
-          items:
-            $ref: "#/components/schemas/OrderItem"
-        subtotal:
-          type: number
-        discount:
-          type: number
-        total:
-          type: number
-        status:
-          type: string
-          enum: [pending, processing, shipped, delivered, cancelled]
-        shippingAddress:
-          type: string
-        createdAt:
-          type: string
-      required: [id, buyerId, buyerName, items, subtotal, discount, total, status, shippingAddress, createdAt]
-
-    OrderInput:
-      type: object
-      properties:
-        shippingAddress:
-          type: string
-        paymentMethod:
-          type: string
-      required: [shippingAddress, paymentMethod]
-
-    OrderStatusUpdate:
-      type: object
-      properties:
-        status:
-          type: string
-          enum: [pending, processing, shipped, delivered, cancelled]
-      required: [status]
-
-    SellerStats:
-      type: object
-      properties:
-        totalRevenue:
-          type: number
-        totalOrders:
-          type: integer
-        totalProducts:
-          type: integer
-        pendingOrders:
-          type: integer
-        avgOrderValue:
-          type: number
-        revenueGrowth:
-          type: number
-      required: [totalRevenue, totalOrders, totalProducts, pendingOrders, avgOrderValue, revenueGrowth]
-
-    SalesDataPoint:
+    HistoricalPoint:
       type: object
       properties:
         date:
           type: string
-        revenue:
+        price:
           type: number
-        orders:
-          type: integer
-      required: [date, revenue, orders]
+      required: [date, price]
 
-    TopProduct:
+    Stock:
       type: object
       properties:
-        productId:
+        symbol:
           type: string
         name:
           type: string
-        imageUrl:
-          type: string
-        totalSold:
-          type: integer
-        revenue:
+        price:
           type: number
-      required: [productId, name, imageUrl, totalSold, revenue]
+        previousClose:
+          type: number
+        change:
+          type: number
+        changePercent:
+          type: number
+        volume:
+          type: number
+        marketCap:
+          type: number
+        sector:
+          type: string
+        description:
+          type: string
+        historicalData:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistoricalPoint"
+      required: [symbol, name, price, previousClose, change, changePercent, volume, marketCap, sector, description, historicalData]
+
+    StockInput:
+      type: object
+      properties:
+        symbol:
+          type: string
+        name:
+          type: string
+        price:
+          type: number
+        previousClose:
+          type: number
+        sector:
+          type: string
+        description:
+          type: string
+        volume:
+          type: number
+        marketCap:
+          type: number
+      required: [symbol, name, price, previousClose, sector]
+
+    TradeInput:
+      type: object
+      properties:
+        symbol:
+          type: string
+        quantity:
+          type: number
+      required: [symbol, quantity]
+
+    TradeResult:
+      type: object
+      properties:
+        transaction:
+          $ref: "#/components/schemas/Transaction"
+        newBalance:
+          type: number
+      required: [transaction, newBalance]
+
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        symbol:
+          type: string
+        stockName:
+          type: string
+        type:
+          type: string
+          enum: [buy, sell]
+        quantity:
+          type: number
+        price:
+          type: number
+        total:
+          type: number
+        createdAt:
+          type: string
+      required: [id, userId, symbol, stockName, type, quantity, price, total, createdAt]
+
+    Holding:
+      type: object
+      properties:
+        symbol:
+          type: string
+        stockName:
+          type: string
+        quantity:
+          type: number
+        avgBuyPrice:
+          type: number
+        currentPrice:
+          type: number
+        currentValue:
+          type: number
+        profitLoss:
+          type: number
+        profitLossPercent:
+          type: number
+      required: [symbol, stockName, quantity, avgBuyPrice, currentPrice, currentValue, profitLoss, profitLossPercent]
+
+    Portfolio:
+      type: object
+      properties:
+        holdings:
+          type: array
+          items:
+            $ref: "#/components/schemas/Holding"
+        totalValue:
+          type: number
+        totalInvested:
+          type: number
+        totalProfitLoss:
+          type: number
+        totalProfitLossPercent:
+          type: number
+        cashBalance:
+          type: number
+      required: [holdings, totalValue, totalInvested, totalProfitLoss, totalProfitLossPercent, cashBalance]

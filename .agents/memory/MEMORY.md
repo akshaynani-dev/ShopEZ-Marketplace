@@ -1,0 +1,3 @@
+- [Zod import in esbuild bundles](zod-esbuild.md) — use `"zod"` not `"zod/v4"` in API server routes; esbuild can't resolve the subpath export.
+- [Orval single-mode codegen](orval-codegen.md) — after codegen, `lib/api-zod/src/index.ts` gets overwritten; must echo correct export line back.
+- [Express 5 params typing](express5-params.md) — `req.params.x` is `string | string[]`; use `String(req.params.x)` before calling string methods.

@@ -5,53 +5,36 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import NotFound from "@/pages/not-found";
 import { Home } from "@/pages/Home";
+import { Market } from "@/pages/Market";
+import { StockDetail } from "@/pages/StockDetail";
+import { Portfolio } from "@/pages/Portfolio";
+import { Transactions } from "@/pages/Transactions";
+import { AdminDashboard } from "@/pages/AdminDashboard";
 import { Login } from "@/pages/Login";
 import { Register } from "@/pages/Register";
-import { Products } from "@/pages/Products";
-import { ProductDetail } from "@/pages/ProductDetail";
-import { Cart } from "@/pages/Cart";
-import { Checkout } from "@/pages/Checkout";
-import { Orders } from "@/pages/Orders";
-import { OrderDetail } from "@/pages/OrderDetail";
-import { SellerDashboard } from "@/pages/SellerDashboard";
-import { SellerProducts } from "@/pages/SellerProducts";
-import { SellerOrders } from "@/pages/SellerOrders";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
+});
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/market" component={Market} />
+      <Route path="/stocks/:symbol" component={StockDetail} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
-      <Route path="/products" component={Products} />
-      <Route path="/products/:id" component={ProductDetail} />
-      
-      {/* Protected Buyer Routes */}
-      <Route path="/cart">
-        <ProtectedRoute allowedRoles={["buyer"]}><Cart /></ProtectedRoute>
-      </Route>
-      <Route path="/checkout">
-        <ProtectedRoute allowedRoles={["buyer"]}><Checkout /></ProtectedRoute>
-      </Route>
-      <Route path="/orders">
-        <ProtectedRoute allowedRoles={["buyer"]}><Orders /></ProtectedRoute>
-      </Route>
-      <Route path="/orders/:id">
-        <ProtectedRoute allowedRoles={["buyer"]}><OrderDetail /></ProtectedRoute>
-      </Route>
 
-      {/* Protected Seller Routes */}
-      <Route path="/seller">
-        <SellerDashboard />
+      <Route path="/portfolio">
+        <ProtectedRoute allowedRoles={["user", "admin"]}><Portfolio /></ProtectedRoute>
       </Route>
-      <Route path="/seller/products">
-        <SellerProducts />
+      <Route path="/transactions">
+        <ProtectedRoute allowedRoles={["user", "admin"]}><Transactions /></ProtectedRoute>
       </Route>
-      <Route path="/seller/orders">
-        <SellerOrders />
+      <Route path="/admin">
+        <ProtectedRoute allowedRoles={["admin"]}><AdminDashboard /></ProtectedRoute>
       </Route>
 
       <Route component={NotFound} />
